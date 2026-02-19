@@ -35,12 +35,12 @@ public class BTree {
         // 꽉 찬 노드에는 (2*t)-1 개의 키가 있다.
         // 이중 1개는 부모로 올라간다.
         // 따라서 남은 노드 키의 개수는 2t-2 개 이다.
-        // 2t-2를 나누면 t-1개씩 왼쪽과 오른쪽이 나눠 가진다.
+        // 2t-2를 둘로 나누면 t-1개씩 왼쪽과 오른쪽이 나눠 가진다.
         // 따라서 오른쪽 노드에 복사할 개수는 t-1개이다.
         // 왼쪽 노드 : 0 ~ t-2 → t-2 - 0 + 1 = t-1 개
         // 부모로 올라갈 값 : t-1
         // 오른쪽 노드 : t ~ 2t-2 → 2t-2 - t + 1 = t-1 개
-        // 오른쪽 노드는 minDegree(=t)부터 시작해서 끝까지 복새해야 한다.
+        // 오른쪽 노드는 minDegree(=t)부터 시작해서 끝까지 복사해야 한다.
         for (int i = 0; i < minDegree - 1; i++) {
             newChild.keys[i] = fullChild.keys[minDegree + i];
         }
@@ -89,7 +89,45 @@ public class BTree {
     }
 
     void insertNonFull(BTreeNode node, int key) {
-        // 재귀 삽입
+        int childIndex = node.keysCount - 1;
+        if (node.isLeaf) {
+            // 정렬 유지 삽입
+            // 제자리(in-place) 알고리즘으로 배열 삽입
+            // 정렬된 배열 키 요소보다 키가 크다면 종료
+            while (childIndex >= 0 && key < node.keys[childIndex]) {
+                node.keys[childIndex + 1] = node.keys[childIndex];
+                childIndex--;
+            }
+            // 정렬된 배열 키 요소보다 크다고 확인한 요소 다음 인덱스 위치에 키 삽입
+            node.keys[childIndex + 1] = key;
+            node.keysCount++;
+        } else {
+            // 키보다 작은 정렬된 배열 키 요소의 인덱스 탐색
+            while (childIndex >= 0 && key < node.keys[childIndex]) {
+                childIndex--;
+            }
+            // 오름차순으로 정렬되어야 하므로,
+            // 키보다 작은 정렬된 배열 키의 우측노드에 삽입해야 한다.
+            childIndex++;
+
+            // 탐색할 자식 노드가 꽉 찬 상태라면 분할을 수행한다.
+            if (node.children[childIndex].keysCount == (2 * minDegree) - 1) {
+                splitChild(node, childIndex);
+
+                // 분할 후 내려갈 방향을 재결정한다.
+                // 자식에서 올라온 중앙 키와 키를 비교하여 중앙 키가 크다면 현재 경로를,
+                // 중앙 키가 작다면 중앙 키의 우측 경로를 탐색할 수 있도록 한다.
+                // e.g. [10, 50], key = 35
+                // 자식에서 40이 올리온 경우 [10, 40, 50]이 되므로 분할 전 경로, 즉 10의 우측 노드를 그대로 탐색
+                // 자식에서 30이 올라온 경우 [10, 30, 50]이 되므로 30보다 큰 노드가 있는 30의 우측 노드를 탐색
+                if (key > node.keys[childIndex]) {
+                    childIndex++;
+                }
+            }
+
+            // 리프 노드에 다다를 때까지 재귀를 수행한다.
+            insertNonFull(node.children[childIndex], key);
+        }
     }
 
     public static void main(String[] args) {
