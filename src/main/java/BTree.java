@@ -1,3 +1,5 @@
+import static java.util.Objects.nonNull;
+
 public class BTree {
 
     // 최소차수로 구성할 때 이점?
@@ -13,6 +15,11 @@ public class BTree {
 
         this.minDegree = minDegree;
         this.root = new BTreeNode(minDegree, true);
+    }
+
+    public void printBTree() {
+        if (nonNull(root)) root.printInOrder();
+        System.out.println();
     }
 
     // [ 오름차순 정렬의 원칙 ]
@@ -53,8 +60,8 @@ public class BTree {
 
         // 키에서 중앙값 하나를 부모로 올리면 남은 키의 개수는 2t-2로
         // 이를 절반으로 나누면 정확히 t-1개씩 양쪽에 배분된다.
-        fullChild.keysCount = minDegree - 1;
-        newChild.keysCount = minDegree - 1;
+        fullChild.keyCount = minDegree - 1;
+        newChild.keyCount = minDegree - 1;
 
         // 부모의 자식 포인터 이동
         // 제자리(in-place) 알고리즘으로 새로운 노드의 포인터가 들어갈 위치를 확보한다.
@@ -62,11 +69,12 @@ public class BTree {
         // 다음 인덱스(childIndex + 1)부터 끝까지의 데이터들을 오른쪽으로 밀어야 한다.
         // 내려가면서 미리 꽉 찬 노드를 쪼개는(Proactive Split) 방식을 쓰기 때문에,
         // index out of bounds가 발생할 일은 없다.
-        // e.g. ◼️◼️◼️◽️◽️ → ◼️◼️◽️◼️◽️
-        // 자식은 키보다 하나 더 많다.
-        // 예를 들어 keyCount가 3일 떄, 자식은 키보다 하나 더 많다는 점을 생각하면
-        // 자식은 배열 인덱스 3까지 차 있다. 따라서 인덱스의 시작점은 keyCount부터 시작한다.
-        for (int i = parent.keysCount; i >= childIndex + 1; i--) {
+        // e.g. ◼️◼️◼️◽️◽️ → ◼️◽️◼️◼️◽️
+        // 새 노드는 정렬 규칙에 따라, 분할된 노드의 오른쪽 위치에 삽입되어야 한다.
+        // B-Tree에서 자식 개수는 항상 (키 개수 + 1)이므로,
+        // parent.keyCount는 현재 유효한 마지막 자식의 인덱스를 의미한다.
+        // 따라서 자식 배열 이동은 parent.keyCount부터 시작해야한다.
+        for (int i = parent.keyCount; i >= childIndex + 1; i--) {
             parent.children[i + 1] = parent.children[i];
         }
         // 새 자식 연결
@@ -74,72 +82,79 @@ public class BTree {
         parent.children[childIndex + 1] = newChild;
 
         // 부모의 키 이동
-        // 이동은 키의 길이(= keyCount)보다 하나 작은 횟수만큼 수행되어야 한다.
-        for (int i = parent.keysCount - 1; i >= childIndex; i--) {
+        // 현재 유효한 마지막 키의 인덱스는 keyCount - 1이다.
+        for (int i = parent.keyCount - 1; i >= childIndex; i--) {
             parent.keys[i + 1] = parent.keys[i];
         }
         // 꽉 찬 노드의 중앙 키 승격
         // C₀, K₀, C₁, K₁, C₂, K₂, …, Kₙ₋₁, Cₙ
         parent.keys[childIndex] = fullChild.keys[minDegree - 1];
-        parent.keysCount++;
+        parent.keyCount++;
     }
 
     void insert(int key) {
-        // root 처리
+
     }
 
     void insertNonFull(BTreeNode node, int key) {
-        int childIndex = node.keysCount - 1;
+        // 키 배열을 비교 대상으로 삼기 때문에, 마지막 유효 키 인덱스인 keyCount - 1부터 시작한다.
+        int keyIndex = node.keyCount - 1;
         if (node.isLeaf) {
-            // 정렬 유지 삽입
-            // 제자리(in-place) 알고리즘으로 배열 삽입
+            // 전체 코드에서 키 또는 자식을 뒤에서부터 탐색하는 이유는
+            // 삽입 위치 찾기와 요소 이동을 한 번에 처리하기 위해서이다.
+            // 즉 데이터가 이동하는 방향의 반대쪽에서부터 시작한다.
             // 정렬된 배열 키 요소보다 키가 크다면 종료
-            while (childIndex >= 0 && key < node.keys[childIndex]) {
-                node.keys[childIndex + 1] = node.keys[childIndex];
-                childIndex--;
+            while (keyIndex >= 0 && key < node.keys[keyIndex]) {
+                node.keys[keyIndex + 1] = node.keys[keyIndex];
+                keyIndex--;
             }
-            // 정렬된 배열 키 요소보다 크다고 확인한 요소 다음 인덱스 위치에 키 삽입
-            node.keys[childIndex + 1] = key;
-            node.keysCount++;
+            // 키 탐색이 종료된 시점의 keyIndex는 삽입하려는 키보다 작은 마지막 키의 위치를 가리킨다.
+            // 따라서 실제로 내려가거나 삽입해야 할 위치는 그 오른쪽이므로 keyIndex++를 수행한다.
+            node.keys[keyIndex + 1] = key;
+            node.keyCount++;
         } else {
             // 키보다 작은 정렬된 배열 키 요소의 인덱스 탐색
-            while (childIndex >= 0 && key < node.keys[childIndex]) {
-                childIndex--;
+            while (keyIndex >= 0 && key < node.keys[keyIndex]) {
+                keyIndex--;
             }
-            // 오름차순으로 정렬되어야 하므로,
-            // 키보다 작은 정렬된 배열 키의 우측노드에 삽입해야 한다.
-            childIndex++;
+            // 키 탐색이 종료된 시점의 keyIndex는 삽입하려는 키보다 작은 마지막 키의 위치를 가리킨다.
+            // 따라서 실제로 내려가거나 삽입해야 할 위치는 그 오른쪽이므로 keyIndex++를 수행한다.
+            keyIndex++;
 
             // 탐색할 자식 노드가 꽉 찬 상태라면 분할을 수행한다.
-            if (node.children[childIndex].keysCount == (2 * minDegree) - 1) {
-                splitChild(node, childIndex);
+            if (node.children[keyIndex].keyCount == (2 * minDegree) - 1) {
+                splitChild(node, keyIndex);
 
                 // 분할 후 내려갈 방향을 재결정한다.
-                // 자식에서 올라온 중앙 키와 키를 비교하여 중앙 키가 크다면 현재 경로를,
-                // 중앙 키가 작다면 중앙 키의 우측 경로를 탐색할 수 있도록 한다.
+                // 자식 노드를 분할하면 중앙 키가 부모의 keyIndex 위치에 삽입된다.
+                // 따라서 삽입하려는 키와 승격된 중앙 키를 비교하여,
+                // 중앙 키가 크다면 현재 경로를, 중앙 키가 작다면 중앙 키의 우측 경로를 탐색할 수 있도록 한다.
                 // e.g. [10, 50], key = 35
-                // 자식에서 40이 올리온 경우 [10, 40, 50]이 되므로 분할 전 경로, 즉 10의 우측 노드를 그대로 탐색
-                // 자식에서 30이 올라온 경우 [10, 30, 50]이 되므로 30보다 큰 노드가 있는 30의 우측 노드를 탐색
-                if (key > node.keys[childIndex]) {
-                    childIndex++;
+                // 자식에서 40이 올리온 경우 키 배열이 [10, 40, 50]이 되므로 분할 전 경로, 즉 키 10의 우측 자식 노드를 그대로 탐색
+                // 자식에서 30이 올라온 경우 키 배열이 [10, 30, 50]이 되므로 30보다 큰 노드가 있는 키 30의 우측 자식 노드를 탐색
+                if (key > node.keys[keyIndex]) {
+                    keyIndex++;
                 }
             }
 
             // 리프 노드에 다다를 때까지 재귀를 수행한다.
-            insertNonFull(node.children[childIndex], key);
+            insertNonFull(node.children[keyIndex], key);
         }
     }
 
-    public static void main(String[] args) {
-        BTree bTree = new BTree(6);
+    public static class BTreeExample {
 
-        bTree.insert(10);
-        bTree.insert(20);
-        bTree.insert(5);
-        bTree.insert(6);
+        public static void main(String[] args) {
+            BTree bTree = new BTree(6);
+
+            bTree.insert(10);
+            bTree.insert(20);
+            bTree.insert(5);
+            bTree.insert(6);
 
 
-        System.out.print("In-order traversal of the B-tree: ");
-        // bTree.traverse();
+            System.out.print("In-order traversal of the B-tree: ");
+            bTree.printBTree();
+        }
     }
 }
