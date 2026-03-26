@@ -93,7 +93,21 @@ public class BTree {
     }
 
     void insert(int key) {
+        // 루트 노드가 꽉 찼는지 확인한다.
+        if (root.keyCount == (2 * minDegree) - 1) {
+            // B-Tree는 항상 내려가기 전에 "자식" 노드가 가득 차 있다면 분할해야한다.
+            // 하지만 루트는 부모 노드가 없으므로 부모 노드를 만들어 연결한다.
+            BTreeNode newRoot = new BTreeNode(minDegree, false);
+            newRoot.children[0] = root;
+            root = newRoot;
 
+            // 꽉 찬 노드(= 기존 루트 노드)를 분할하고 중앙 키를 새 루트로 올린다.
+            splitChild(root, 0);
+            // 분할이 되었으므로 새 루트 노드를 기준으로 삽입 탐색을 진행한다.
+            insertNonFull(root, key);
+        } else {
+            insertNonFull(root, key);
+        }
     }
 
     void insertNonFull(BTreeNode node, int key) {
