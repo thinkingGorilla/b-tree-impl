@@ -1,3 +1,4 @@
+import static java.util.Objects.isNull;
 import static java.util.Objects.nonNull;
 
 public class BTree {
@@ -38,7 +39,7 @@ public class BTree {
         BTreeNode fullChild = parent.children[childIndex];
         BTreeNode newChild = new BTreeNode(minDegree, fullChild.isLeaf);
 
-        // 1. 키 목록의 오른쪽 절반을 복사한다.
+        // 키 목록의 오른쪽 절반을 복사한다.
         // 꽉 찬 노드에는 (2*t)-1 개의 키가 있다.
         // 이중 1개는 부모로 올라간다.
         // 따라서 남은 노드 키의 개수는 2t-2 개 이다.
@@ -155,6 +156,61 @@ public class BTree {
             insertNonFull(node.children[keyIndex], key);
         }
     }
+
+    public void remove(int key) {
+        if (isNull(root)) return;
+
+        remove(root, key);
+
+        if (root.keyCount == 0) {
+            // 루트 노드 하나만 남아 있는 상태에서 계속 삭제한 경우
+            if (root.isLeaf) {
+                root = null;
+            // 분할 후 merge가 발생하여 루트의 키 카운트가 0이된 경우
+            } else {
+                root = root.children[0];
+            }
+        }
+    }
+
+    private void remove(BTreeNode node, int key) {
+        int index = findKey(node, key);
+
+        // 키가 현재 노드에 존재하는 경우
+        // 키 카운트를 넘는 경우 → 오른쪽 자식 노드에 키가 있을 가능성
+        // 찾는 인덱스의 키 요소와 키 값이 다른 경우 → children[index] 노드에 키가 있을 가능성
+        // C₀, K₀, C₁, K₁, C₂, …, Cₙ, Kₙ, Cₙ₊₁
+        // e.g. [10, 20, 30]
+        // key = 5, findKey → 0
+        // key = 15, findKey → 1
+        // key = 25, findKey → 2
+        // key = 35, findKey → 3
+        // findKey가 out of index를 반환한 경우(= 키 카운트와 동일한 값)를 방어하기 위해
+        // "index < node.keyCount" 조건을 넣는다.
+        if (index < node.keyCount && node.keys[index] == key) {
+
+        // key가 현재 노드에 없는 경우
+        } else {
+
+        }
+    }
+
+    // node.keys[] 배열에서 키가 있거나, 키가 들어가야 할 위치를 반환한다.
+    int findKey(BTreeNode node, int key) {
+        int index = 0;
+        // 키에 가장 근접한 키 요소의 인덱스를 반환한다.
+        // e.g. [10, 20, 30], key = 50
+        // index 0 → 10 < 50, index++
+        // index 1 → 20 < 50, index++
+        // index 2 → 30 < 50, index++
+        // index 3 → 3 < 3, "키 카운트와 동일한 값"이므로 종료
+        while (index < node.keyCount && node.keys[index] < key) {
+            index++;
+        }
+
+        return index;
+    }
+
 
     public static class BTreeExample {
 
