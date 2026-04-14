@@ -1,3 +1,7 @@
+import java.util.Arrays;
+import java.util.List;
+import java.util.Random;
+
 import static java.util.Objects.isNull;
 import static java.util.Objects.nonNull;
 
@@ -29,7 +33,7 @@ public class BTree {
     // 제자리(in-place) 알고리즘으로 배열 삽입을 실행한다.
     //
     // 관계 중심 표기법 : C₀, K₀, C₁, K₁, C₂, …, Cₙ, Kₙ, Cₙ₊₁
-    // 배열 중심 표기법 : C₀, K₀, C₁, K₁, C₂, K₂, …, Kₙ₋₁, Cₙ
+    // 배열 중심 표기법 : C₀, K₀, C₁, K₁, C₂, K₂, …, Cₙ₋₁, Kₙ₋₁, Cₙ
     //
     // parent.keys[i]를 기준으로,
     // 왼쪽 자식은 parent.children[i]
@@ -61,6 +65,8 @@ public class BTree {
                 newChild.children[i] = fullChild.children[minDegree + i];
             }
         }
+        // 최소 차수가 3일 때, 최대 자식 개수는 6, 키는 5이다.
+        // 자식은 [0~t), 키는 [0~t-1)를 범위를 순회한다.
 
         // 키에서 중앙값 하나를 부모로 올리면 남은 키의 개수는 2t-2로
         // 이를 절반으로 나누면 정확히 t-1개씩 양쪽에 배분된다.
@@ -84,16 +90,22 @@ public class BTree {
             parent.children[i + 1] = parent.children[i];
         }
         // 새 자식 연결
-        // C₀, K₀, C₁, K₁, C₂, K₂, …, Kₙ₋₁, Cₙ
         parent.children[childIndex + 1] = newChild;
 
         // 부모의 키 이동
         // 현재 유효한 마지막 키의 인덱스는 keyCount - 1이다.
+        // 꽉 찬 노드가 Cₙ일 때, 옮겨야하는 키는 Kₙ이다.
+        // 관계 중심 표기법 : C₀, K₀, C₁, K₁, C₂, …, Cₙ, Kₙ, Cₙ₊₁
         for (int i = parent.keyCount - 1; i >= childIndex; i--) {
             parent.keys[i + 1] = parent.keys[i];
         }
         // 꽉 찬 노드의 중앙 키 승격
-        // C₀, K₀, C₁, K₁, C₂, K₂, …, Kₙ₋₁, Cₙ
+        // 꽉 찬 노드에는 (2*t)-1 개의 키가 있다.
+        // 이중 가운데 키가 부모로 올라간다.
+        // 왼쪽 노드 : 0 ~ t-2 → t-2 - 0 + 1 = t-1 개
+        // 부모로 올라갈 값 : t-1
+        // 오른쪽 노드 : t ~ 2t-2 → 2t-2 - t + 1 = t-1 개
+        // K₀, …, Kₜ₋₂, Kₜ₋₁, Kₜ, Kₜ₊₁, …, K₂ₜ₋₂
         parent.keys[childIndex] = fullChild.keys[minDegree - 1];
         parent.keyCount++;
     }
@@ -108,6 +120,10 @@ public class BTree {
             root = newRoot;
 
             // 꽉 찬 노드(= 기존 루트 노드)를 분할하고 중앙 키를 새 루트로 올린다.
+            // 자식 개수 = 키 개수 + 1 이므로,
+            // B-Tree 구조상 "키 인덱스와 왼쪽 자식 인덱스가 동일하다".
+            // 즉, Kᵢ의 Cᵢ은 왼쪽 서브트리이고 Kᵢ의 Cᵢ₊₁은 오른쪽 서브트리이다.
+            // cf. 관계 중심 표기법 : C₀, K₀, C₁, K₁, C₂, …, Cₙ, Kₙ, Cₙ₊₁
             splitChild(root, 0);
             // 분할이 되었으므로 새 루트 노드를 기준으로 삽입 탐색을 진행한다.
             insertNonFull(root, key);
@@ -143,6 +159,10 @@ public class BTree {
 
             // 탐색할 자식 노드가 꽉 찬 상태라면 분할을 수행한다.
             if (node.children[keyIndex].keyCount == (2 * minDegree) - 1) {
+                // 자식 개수 = 키 개수 + 1 이므로,
+                // B-Tree 구조상 "키 인덱스와 왼쪽 자식 인덱스가 동일하다".
+                // 즉, Kᵢ의 Cᵢ은 왼쪽 서브트리이고 Kᵢ의 Cᵢ₊₁은 오른쪽 서브트리이다.
+                // cf. 관계 중심 표기법 : C₀, K₀, C₁, K₁, C₂, …, Cₙ, Kₙ, Cₙ₊₁
                 splitChild(node, keyIndex);
 
                 // 분할 후 내려갈 방향을 재결정한다.
@@ -151,6 +171,8 @@ public class BTree {
                 // 중앙 키가 크다면 현재 경로를, 중앙 키가 작다면 중앙 키의 우측 경로를 탐색할 수 있도록 한다.
                 //
                 // e.g. [10, 50], key = 35
+                // 이 떄 키 인덱스는 1이다. 즉, 10의 우측 노드로 내려가려할 때 우측 노드가 꽉 찬 상태라면 분할이 발생한다.
+                // 그리고 다음과 같은 경우를 따져야한다.
                 // 자식에서 40이 올리온 경우 키 배열이 [10, 40, 50]이 되므로 분할 전 경로, 즉 키 10의 우측 자식 노드를 그대로 탐색
                 // 자식에서 30이 올라온 경우 키 배열이 [10, 30, 50]이 되므로 30보다 큰 노드가 있는 키 30의 우측 자식 노드를 탐색
                 if (key > node.keys[keyIndex]) {
@@ -172,7 +194,7 @@ public class BTree {
             // 루트 노드 하나만 남아 있는 상태에서 계속 삭제한 경우
             if (root.isLeaf) {
                 root = null;
-            // 키 삭제로 인해 merge가 발생하였고, 루트의 키 카운트가 0이된 경우
+                // 키 삭제로 인해 merge가 발생하였고, 루트의 키 카운트가 0이된 경우
             } else {
                 root = root.children[0];
             }
@@ -181,7 +203,7 @@ public class BTree {
 
     // node.keys[] 배열에서 키가 있거나, 키가 들어가야 할 위치를 반환한다.
     int findKey(BTreeNode node, int key) {
-        int index = 0;
+        int keyIndex = 0;
         // 키에 가장 근접한 키 요소의 인덱스를 반환한다.
         //
         // e.g. [10, 20, 30], key = 50
@@ -189,31 +211,31 @@ public class BTree {
         // index 1 → 20 < 50, index++
         // index 2 → 30 < 50, index++
         // index 3 → 3 < 3, "키 카운트와 동일한 값"이므로 종료
-        while (index < node.keyCount && node.keys[index] < key) {
-            index++;
+        while (keyIndex < node.keyCount && node.keys[keyIndex] < key) {
+            keyIndex++;
         }
 
-        return index;
+        return keyIndex;
     }
 
     // 삭제
     //
     // 1. 현재 노드에 키가 존재하는 경우
-    //  1-1. 노드가 리프 노드인 경우 + 삭제
-    //  1-2. 노드가 브랜치 노드인 경우
-    //    1-2-1. 왼쪽 노드에서 키를 가져올 수 있는 경우 (predecessor) + 삭제 재귀
-    //    1-2-2. 오른쪽 노드에서 키를 가져올 수 있는 경우 (successor) + 삭제 재귀
-    //    1-2-3. 양쪽 노드에서 키를 가져올 수 없는 경우 + 머지 후 삭제
+    //   1-1. 노드가 리프 노드인 경우 + 삭제
+    //   1-2. 노드가 브랜치 노드인 경우
+    //     1-2-1. 왼쪽 노드에서 키를 가져올 수 있는 경우 predecessor로 대체 + 삭제 재귀
+    //     1-2-2. 오른쪽 노드에서 키를 가져올 수 있는 경우 successor로 대체 + 삭제 재귀
+    //     1-2-3. 양쪽 노드에서 키를 가져올 수 없는 경우 + 머지 후 삭제
     // 2. 현재 노드에 키가 없는 경우
-    //  2-1. 노드가 리프 노드인 경우 + 삭제할 키가 없으므로 종료
-    //  2-2. 노드가 브랜치 노드인 경우
-    //    2-2-1. 내려갈 자식 노드가 최소 키 상태인 경우
-    //      2-2-1-1. 왼쪽 노드에서 키를 가져올 수 있는 경우 (borrow)
-    //      2-2-1-2. 오른쪽 노드에서 키를 가져올 수 있는 경우 (borrow)
-    //      2-2-1-3. 양쪽 노드에서 키를 가져올 수 없는 경우 + 머지
-    //  2-2. 인덱스 보정 + 삭제 재귀
+    //   2-1. 노드가 리프 노드인 경우 + 삭제할 키가 없으므로 종료
+    //   2-2. 노드가 브랜치 노드인 경우
+    //     2-2-1. 내려갈 자식 노드가 최소 키 상태인 경우
+    //       2-2-1-1. 왼쪽 노드에서 키를 가져올 수 있는 경우 (borrow)
+    //       2-2-1-2. 오른쪽 노드에서 키를 가져올 수 있는 경우 (borrow)
+    //       2-2-1-3. 양쪽 노드에서 키를 가져올 수 없는 경우 + 머지
+    //   2-2. 인덱스 보정 + 삭제 재귀
     private void remove(BTreeNode node, int key) {
-        int index = findKey(node, key);
+        int keyIndex = findKey(node, key);
 
         // 키가 현재 노드에 존재하는 경우
         // 1. 키 카운트를 넘는 경우 → 오른쪽 자식 노드에 키가 있을 가능성
@@ -228,64 +250,95 @@ public class BTree {
         //
         // findKey가 out of index를 반환한 경우(= 키 카운트와 동일한 값)를 방어하기 위해
         // "index < node.keyCount" 조건을 넣는다.
-        if (index < node.keyCount && node.keys[index] == key) {
+        if (keyIndex < node.keyCount && node.keys[keyIndex] == key) {
             if (node.isLeaf) {
-                removeFromLeaf(node, index);
+                removeFromLeaf(node, keyIndex);
             } else {
-                removeFromNonLeaf(node, index);
+                removeFromNonLeaf(node, keyIndex);
             }
-        // key가 현재 노드에 없는 경우
+            // key가 현재 노드에 없는 경우
         } else {
             // 리프 노드 조차 키를 가지고 있지 않다면
             // B-트리에 키가 존재하지 않는 것이다.
             if (node.isLeaf) return;
 
-            if (node.children[index].keyCount < minDegree) {
-                fill(node, index);
+            boolean isLastChild = (keyIndex == node.keyCount);
+
+            // 자식 노드로 내려가기 전 자식 노드 키 개수가
+            // 최소 키 개수를 만족하는지 확인한다.
+            // (child.keyCount - 1) < (minDegree - 1)
+            //            ↑                   ↑
+            // "자식의 키를 하나 삭제해서"  "최소 키 개수 규칙" 를 만족하지 않는다면,
+            //
+            //  K₀ K₁ K₂
+            // C₀ C₁ C₂ C₃
+            //
+            // 자식 개수 = 키 개수 + 1 이므로,
+            // B-Tree 구조상 "키 인덱스와 왼쪽 자식 인덱스가 동일하다".
+            // 즉, Kᵢ의 Cᵢ은 왼쪽 서브트리이고 Kᵢ의 Cᵢ₊₁은 오른쪽 서브트리이다.
+            // 하지만 keyIndex == keyCount 상황이 발생할 수 있고,
+            // 이는 Cₙ₊₁(= 마지막 자식)으로 이동해야함을 나타낸다.
+            // cf. 관계 중심 표기법 : C₀, K₀, C₁, K₁, C₂, …, Cₙ, Kₙ, Cₙ₊₁
+            if (node.children[keyIndex].keyCount < minDegree) {
+                // 자식 노드에서 삭제가 발생할 때
+                fill(node, keyIndex);
+            }
+
+            // 마지막 노드로 가려고 했으나, 마지막 노드가 병합된 경우
+            // 원래 내려가고자 했던 keyIndex는 더이상 유효하지 않으므로 keyIndex-1로 보정한다.
+            // e.g.
+            //   C₀ K₀ C₁ K₁ C₂ 에서 K₁가 결정된 경우 C₂가 최소 키 개수를 만족하지 못해 merge가 발생
+            //   C₀ K₀ C₁' 이 되고, 따라서 keyIndex는 -1 보정하여 K₀가 되어야 함
+            if (isLastChild && keyIndex > node.keyCount) {
+                remove(node.children[keyIndex - 1], key);
+            } else {
+                remove(node.children[keyIndex], key);
             }
         }
     }
 
-    private void removeFromLeaf(BTreeNode node, int index) {
+    private void removeFromLeaf(BTreeNode node, int keyIndex) {
         // e.g. ◼️◼️◽️◼️◽️ → 타겟은 index이므로 index + 1 위치의 요소를 가져와 덮어쓴다.
-        for (int i = index + 1; i < node.keyCount; i++) {
+        for (int i = keyIndex + 1; i < node.keyCount; i++) {
             node.keys[i - 1] = node.keys[i];
         }
         node.keyCount--;
     }
 
-    private void removeFromNonLeaf(BTreeNode node, int index) {
-        int key = node.keys[index];
-
-        BTreeNode leftChild = node.children[index];
-        BTreeNode rightChild = node.children[index + 1];
+    private void removeFromNonLeaf(BTreeNode node, int keyIndex) {
+        BTreeNode leftChild = node.children[keyIndex];
+        BTreeNode rightChild = node.children[keyIndex + 1];
 
         // 최소 키 수 → minDegree - 1
         // 최대 키 수 → (2 * minDegree) - 1
         //
         // 브랜치 노드에서 키를 삭제할 때, 왼쪽 또는 오른쪽 자식에서 키를 가져와야 한다.
         // 따라서 자식 노드에서 키를 하나 잃더라도 B-Tree의 최소 키 개수 규칙을 만족해야한다.
-        // child.keyCount - 1 >= minDegree - 1
+        // (child.keyCount - 1) >= (minDegree - 1)
+        //            ↑                   ↑
+        // "자식의 키를 하나 삭제해도"   "최소 키 개수 규칙" 를 만족한다면,
         // 위 부등식은 child.keyCount >= minDegree 와 같다.
         if (leftChild.keyCount >= minDegree) {
             int predecessor = getPredecessor(leftChild);
-            node.keys[index] = predecessor;
+            node.keys[keyIndex] = predecessor;
             // 삭제로 인해 올라온 predecessor 의 빈자리를 메꾸기 위해 삭제를 재귀수행한다.
             remove(leftChild, predecessor);
         } else if (rightChild.keyCount >= minDegree) {
             int successor = getSuccessor(rightChild);
-            node.keys[index] = successor;
+            node.keys[keyIndex] = successor;
             // 삭제로 인해 올라온 successor 의 빈자리를 메꾸기 위해 삭제를 재귀수행한다.
             remove(rightChild, successor);
         } else {
-            merge(node, index);
-            remove(leftChild, key);
+            merge(node, keyIndex);
+            // 머지는 왼쪽 노드를 기준으로 하므로,
+            // 삭제 또한 왼쪽 노드를 기준으로 수행한다.
+            remove(leftChild, node.keys[keyIndex]);
         }
     }
 
     private int getPredecessor(BTreeNode node) {
         BTreeNode current = node;
-        while(!current.isLeaf) {
+        while (!current.isLeaf) {
             // children 배열에서 keyCount는 현재 유효한 마지막 자식의 인덱스를 의미한다.
             current = current.children[current.keyCount];
         }
@@ -295,15 +348,15 @@ public class BTree {
 
     private int getSuccessor(BTreeNode node) {
         BTreeNode current = node;
-        while(!current.isLeaf) {
+        while (!current.isLeaf) {
             current = current.children[0];
         }
         return current.keys[0];
     }
 
-    private void merge(BTreeNode parent, int index) {
-        BTreeNode leftChild = parent.children[index];
-        BTreeNode rightChild = parent.children[index + 1];
+    private void merge(BTreeNode parent, int keyIndex) {
+        BTreeNode leftChild = parent.children[keyIndex];
+        BTreeNode rightChild = parent.children[keyIndex + 1];
 
         // 머지는 왼쪽 노드를 기준으로 한다.
         //
@@ -313,8 +366,9 @@ public class BTree {
         // 따라서 (왼쪽 노드 키 개수 + 부모 키 + 오른쪽 노드 키 개수) = (2 * minDegree) - 1
         // 즉, 최대 키 개수를 만족한다.
         //
-        // 부모의 key[index]를 왼쪽 노드의 가운데에 복사한다.
-        leftChild.keys[minDegree - 1] = parent.keys[index];
+        // 구조적 중앙 위치를 나타내기 위해 minDegree - 1를 사용한다.
+        // 이 표현은 leftChild.keys[leftChild.keyCount]와 같다.
+        leftChild.keys[minDegree - 1] = parent.keys[keyIndex];
 
         // 오른쪽 노드의 키들을 왼쪽 노드의 키 배열에 복사한다.
         for (int i = 0; i < rightChild.keyCount; i++) {
@@ -332,16 +386,11 @@ public class BTree {
                 //
                 // 자식 개수 = 키 개수 + 1
                 // merge 전 자식 개수
-                //  leftChild.children  : 0 ~ t-1 (t개)
-                //  rightChild.children : 0 ~ t-1 (t개)
+                //  leftChild.children  : t개
+                //  rightChild.children : t개
                 // merge 후 자식 개수
-                //  leftChild.children : 0 ~ 2t-1 (2t개)
-                //  기존 leftChild 자식 → 0 ~ t-1
-                //  rightChild 자식 → t ~ 2t-1
-                // cf. 울타리 말뚝 문제
+                //  leftChild.children : 2t개 (leftChild 자식 → 0 ~ t-1, rightChild 자식 → t ~ 2t-1)
                 //
-                // 왼쪽 노드 자식 개수 = t
-                // 오른쪽 노드 자식 개수 = t
                 // 즉, 오른쪽 노드의 자식들은 왼쪽 노드 자식 배열의 t(= miDegree)번째 위치부터 이어 붙어야한다.
                 // 또한 자식 개수 = 키 개수 + 1이므로, 마지막 자식까지 복사하기 위해 0 ~ t 까지의 인덱스에 접근해야한다.
                 leftChild.children[minDegree + i] = rightChild.children[i];
@@ -355,7 +404,7 @@ public class BTree {
         // 부모의 키 배열을 왼쪽으로 당긴다.
         // merge로 부모 자식 배열에서 제거되어야 하는 index 위치에 있는 키이다.
         // e.g. ◼️◼️◽️◼️◽️ → 타겟은 index이므로 index + 1 위치의 요소를 가져와 덮어쓴다.
-        for (int i = index + 1; i < parent.keyCount; i++) {
+        for (int i = keyIndex + 1; i < parent.keyCount; i++) {
             parent.keys[i - 1] = parent.keys[i];
         }
         // 부모의 자식 배열을 왼쪽으로 당긴다.
@@ -363,20 +412,122 @@ public class BTree {
         // e.g.
         //  ◼️◼️◽️◼️◽️
         // ◼️◼️◼️◼️◼️◽️ → 타겟은 index + 1이므로 index + 2 위치의 요소를 가져와 덮어쓴다.
+        //      ↑ ↑  ↖ Cₙ₊₂
+        //     Cₙ Cₙ₊₁
+        //      L R
+        // R 노드를 L 노드에 병합한다.
         // 또한 자식 개수 = 키 개수 + 1이므로, 마지막 자식까지 복사하기 위해 0 ~ t 까지의 인덱스에 접근해야한다.
-        for (int i = index + 2; i <= parent.keyCount; i++) {
+        for (int i = keyIndex + 2; i <= parent.keyCount; i++) {
             parent.children[i - 1] = parent.children[i];
         }
 
         parent.keyCount--;
     }
 
-    private void fill(BTreeNode parent, int index) {
-        // 왼쪽 노드에서 빌릴 수 있는 경우
-
+    // 부모 노드에서 자식 노드 중 index에 위치한 노드의 키 카운트가
+    // 최소 키 개수 규칙을 만족하지 못할 fill을 수행한다.
+    //
+    // (child.keyCount - 1) >= (minDegree - 1)
+    //            ↑                   ↑
+    // "자식의 키를 하나 삭제해도"   "최소 키 개수 규칙" 를 만족한다면,
+    // 위 부등식은 child.keyCount >= minDegree 와 같다.
+    private void fill(BTreeNode parent, int childIndex) {
+        // 왼쪽에 노드가 있고 왼쪽 노드에서 키를 빌릴 수 있는 경우
+        if (childIndex != 0 && parent.children[childIndex - 1].keyCount >= minDegree) {
+            borrowFromPrev(parent, childIndex);
         // 오른쪽 노드에서 빌릴 수 있는 경우
-
+        } else if (childIndex != parent.keyCount && parent.children[childIndex + 1].keyCount >= minDegree) {
+            borrowFromNext(parent, childIndex);
         // 둘 다 빌릴 수 없는 경우
+        } else {
+            // parent.keyCount는 현재 유효한 마지막 자식의 인덱스를 의미한다.
+            if (childIndex == parent.keyCount) {
+                //  K₀ K₁ K₂
+                // C₀ C₁ C₂ C₃
+                //          ↑
+                //      최소 키 개수 X
+                //
+                // 머지는 왼쪽 노드를 기준해야하므로,
+                // 최소 키 개수 규칙을 만족하지 않는 자식 노드가 마지막 자식 노드라면,
+                // 해당 노드의 앞 노드를 기준으로 머지를 수행한다.
+                merge(parent, childIndex - 1);
+            } else {
+                merge(parent, childIndex);
+            }
+            // imo. 왜 removeFromNonLeaf(node, keyIndex) 에는 머지 전 인덱스 보정이 없지?
+            // removeFromNonLeaf 는 keyIndex를 기준으로 동작하므로 boundary를 신경쓰지 않아도 된다.
+        }
+    }
+
+    private void borrowFromPrev(BTreeNode parent, int childIndex) {
+        BTreeNode child = parent.children[childIndex];
+        BTreeNode sibling = parent.children[childIndex - 1];
+
+        // child의 키&자식 →, 부모의 키 ↓, (front)sibling 자식노드 → 순으로 이동을 수행한다.
+
+        // child의 키를 전부 오른쪽으로 민다.
+        // e.g. ◼️◼️◼️◼️◼️◽️ → ◽️◼️◼️◼️◼️
+        for (int i = child.keyCount - 1; i >= 0; i--) {
+            child.keys[i + 1] = child.keys[i];
+        }
+
+        // child가 리프가 아니라면 자식도 전부 오른쪽으로 민다.
+        if (!child.isLeaf) {
+            for (int i = child.keyCount; i >= 0; i--) {
+                child.keys[i + 1] = child.keys[i];
+            }
+        }
+
+        // child의 첫 번째 키 위치에 부모의 키를 내린다.
+        // C₀, K₀, C₁, K₁, C₂, K₂, …, Cₙ₋₁, Kₙ₋₁, Cₙ
+        // child와 (front)sibling과의 관계에서 부모의 키 위치는 Kₙ₋₁이다.
+        child.keys[0] = parent.keys[childIndex - 1];
+
+        // (front)sibling의 맨 마지막 자식 노드를 child의 첫 자식으로 이동시킨다.
+        if (!child.isLeaf) {
+            child.children[0] = sibling.children[sibling.keyCount];
+        }
+
+        // (front)sibling의 마지막 키를 부모로 올린다.
+        parent.keys[childIndex - 1] = sibling.keys[sibling.keyCount - 1];
+
+        child.keyCount++;
+        sibling.keyCount--;
+    }
+
+    private void borrowFromNext(BTreeNode parent, int childIndex) {
+        BTreeNode child = parent.children[childIndex];
+        BTreeNode sibling = parent.children[childIndex + 1];
+
+        // 부모의 키 ↓, (behind)sibling 자식노드 ← 순으로 이동을 수행한다.
+
+        // child의 마지막 키 위치(= keyCount)에 부모의 키를 내린다.
+        // C₀, K₀, C₁, K₁, C₂, …, Cₙ, Kₙ, Cₙ₊₁
+        // child와 (behind)sibling과의 관계에서 부모의 키 위치는 Kₙ이다.
+        child.keys[child.keyCount] = parent.keys[childIndex];
+
+        // (behind)sibling의 맨 첫번쨰 자식 노드를 child의 맨 마지막 자식으로 이동시킨다.
+        if (!child.isLeaf) {
+            child.children[child.keyCount + 1] = sibling.children[0];
+        }
+
+        // (behind)sibling의 첫번째 키를 부모로 올린다.
+        parent.keys[childIndex] = sibling.keys[0];
+
+        // (behind)sibling의 키를 전부 왼쪽으로 민다.
+        for (int i = 1; i < sibling.keyCount; i++) {
+            sibling.keys[i - 1] = sibling.keys[i];
+        }
+
+        // (behind)sibling가 리프가 아니라면 자식도 전부 왼쪽으로 민다.
+        if (!child.isLeaf) {
+            for (int i = 1; i < sibling.keyCount; i++) {
+                sibling.children[i - 1] = sibling.children[i];
+            }
+        }
+
+        child.keyCount++;
+        sibling.keyCount--;
     }
 
     public static class BTreeExample {
@@ -384,13 +535,35 @@ public class BTree {
         public static void main(String[] args) {
             BTree bTree = new BTree(6);
 
-            bTree.insert(10);
-            bTree.insert(20);
-            bTree.insert(5);
-            bTree.insert(6);
+            // 삽입 테스트
+            List<Integer> insertValues = Arrays.asList(
+                40, 10, 60, 20, 30, 50, 70, 80, 90,
+                15, 25, 35, 45, 55, 65, 75, 85
+            );
 
+            System.out.println("=== INSERT TEST ===");
+            for (int value : insertValues) {
+                System.out.println("insert: " + value);
+                bTree.insert(value);
+            }
 
-            System.out.print("In-order traversal of the B-tree: ");
+            System.out.print("after insert: ");
+            bTree.printBTree();
+
+            // 삭제 테스트
+            List<Integer> deleteValues = Arrays.asList(
+                10, 30, 40, 55, 70, 85, 90
+            );
+
+            System.out.println("\n=== DELETE TEST ===");
+            for (int value : deleteValues) {
+                System.out.println("remove: " + value);
+                bTree.remove(value);
+                System.out.print("current tree: ");
+                bTree.printBTree();
+            }
+
+            System.out.print("\nfinal tree: ");
             bTree.printBTree();
         }
     }
